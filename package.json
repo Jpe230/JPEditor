@@ -1,0 +1,103 @@
+{
+  "name": "jpeditor",
+  "author": "Jpe230",
+  "description": "Code editor written in React, Electron powered by Monaco",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-webpack dev",
+    "start": "electron-webpack dev",
+    "compile": "electron-webpack",
+    "dist": "yarn compile && electron-builder",
+    "mac": "yarn compile && electron-builder --mac",
+    "dist:dir": "yarn dist --dir -c.compression=store -c.mac.identity=null"
+  },
+  "dependencies": {
+    "@devbookhq/splitter": "^1.3.2",
+    "@emotion/react": "^11.7.1",
+    "@emotion/styled": "^11.6.0",
+    "@fontsource/roboto": "^4.5.3",
+    "@fortawesome/fontawesome-free": "^5.15.4",
+    "@mui/icons-material": "^5.4.1",
+    "@mui/lab": "^5.0.0-alpha.68",
+    "@mui/material": "^5.4.1",
+    "@popperjs/core": "^2.10.2",
+    "@react-spring/web": "^9.4.3",
+    "array-move": "^4.0.0",
+    "bootstrap": "^5.1.3",
+    "core-js": "3",
+    "custom-electron-titlebar": "^4.1.0",
+    "font-awesome": "^4.7.0",
+    "frameless-titlebar": "^2.1.4",
+    "guess-programming-language": "^1.0.0",
+    "md5": "^2.3.0",
+    "monaco-editor": "0.30.1",
+    "monaco-editor-textmate": "^3.0.0",
+    "monaco-textmate": "^3.0.1",
+    "monaco-themes": "^0.4.0",
+    "monaco-vscode-textmate-theme-converter": "^0.1.7",
+    "onigasm": "^2.2.5",
+    "pretty-lights": "^0.0.26",
+    "react": "^17.0.2",
+    "react-bootstrap": "^2.0.2",
+    "react-bootstrap-icons": "^1.6.1",
+    "react-dom": "^17.0.2",
+    "react-folder-tree": "^5.0.3",
+    "react-router": "^6.0.2",
+    "react-router-dom": "^6.0.2",
+    "react-sick-file-icon": "^0.2.0",
+    "react-smooth-dnd": "^0.11.1",
+    "react-usestateref": "^1.0.8",
+    "source-map-support": "^0.5.16"
+  },
+  "resolutions": {
+    "**/react": "17.0.2",
+    "**/react-dom": "17.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.16.0",
+    "@babel/eslint-parser": "^7.16.3",
+    "@babel/preset-react": "^7.16.0",
+    "babel-loader": "^8.2.3",
+    "copy-webpack-plugin": "^6.3.2",
+    "electron": "8.2.0",
+    "electron-builder": "^22.4.1",
+    "electron-webpack": "^2.8.2",
+    "eslint": "^8.2.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-react": "^7.27.0",
+    "eslint-plugin-react-hooks": "^4.3.0",
+    "json-loader": "^0.5.7",
+    "monaco-editor-webpack-plugin": "^6.0.0",
+    "prettier": "^2.4.1",
+    "webpack": "^4.42.1",
+    "write-file-webpack-plugin": "^4.5.1"
+  },
+  "electronWebpack": {
+    "whiteListedModules": [
+      "monaco-editor"
+    ],
+    "renderer": {
+      "webpackConfig": "webpack.renderer.config.js"
+    }
+  },
+  "build": {
+    "appId": "it.jpe230.jpeditor",
+    "productName": "Jpeditor",
+    "copyright": "Copyright © 2022 Jpeditor",
+    "mac": {
+      "icon": "./public/app.png",
+      "category": "public.app-category.utilities"
+    },
+    "files": [
+      "./build/**/*",
+      "./dist/**/*",
+      "./node_modules/**/*",
+      "./public/**/*",
+      "*.js"
+    ],
+    "directories": {
+      "buildResources": "public"
+    }
+  }
+}

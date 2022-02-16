@@ -1,0 +1,21 @@
+.custom-gutter-horizontal {
+  padding: 0 1px;
+  height: 100%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.custom-gutter-horizontal:hover {
+  cursor: col-resize;
+  background: rgba(0, 140, 255, .8);
+}
+
+.custom-dragger-horizontal {
+  border-radius: 2;
+  background: rgba(0, 140, 255, 0.1);
+}
+
+.tile{
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
