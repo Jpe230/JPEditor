@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { styled } from "pretty-lights";
 import { useEditor } from "@app/renderer/Editor/Provider";
 import { createEditor } from "@app/renderer/Editor/create";
+import WelcomePage from "@app/renderer/Editor/WelcomePage";
 
 const MonacoContainer = styled.div`
   position: relative;
@@ -10,7 +11,7 @@ const MonacoContainer = styled.div`
 
 const Editor = ({ ...options }) => {
   const context = useEditor();
-  const { setInstance, instance } = context;
+  const { setInstance, instance, currentModel } = context;
   Object.defineProperty(window, "editorContext", {
     value: context,
     writable: true,
@@ -31,7 +32,12 @@ const Editor = ({ ...options }) => {
     }
   });
 
-  return <MonacoContainer id="monaco-parent" />;
+  return (
+    <>
+      {(currentModel?.filename === undefined) && <WelcomePage/>}
+      <MonacoContainer id="monaco-parent" />
+    </>
+  );
 };
 
 export default Editor;

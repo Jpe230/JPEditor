@@ -1,6 +1,7 @@
 import React, { useContext, createContext } from "react";
 import { loadCodeForMonaco, writeFile } from "@app/renderer/fileSystem";
-import { isDirtyDialog, SaveAsDialog } from "@app/renderer/Editor/dialogs";
+import { isDirtyDialog, SaveAsDialog, OpenFolderDialog } from "@app/renderer/Editor/dialogs";
+import * as monaco from "monaco-editor";
 import useState from "react-usestateref";
 
 export const defaultModel = {
@@ -25,10 +26,11 @@ export const useEditor = () => useContext(EditorContext);
 
 export const useEditorProvider = () => {
   const [instance, setInstance, instanceRef] = useState(null);
+  const [workspace, setWorkspace, workspaceRef] = useState(undefined);
   const [openedFile, setOpenedFile, openedFileRef] = useState("");
-  const [currentModel, setCurrentModel, currentModelRef] =
-    useState(defaultModel);
+  const [currentModel, setCurrentModel, currentModelRef] = useState(defaultModel);
   const [models, setModels, modelsRef] = useState({});
+  const [unIndex, setunIndex, unIndexRef] = useState(1);
 
   /*
    * Set Current model
@@ -97,22 +99,20 @@ export const useEditorProvider = () => {
     }
 
     // If requested tab exist in our models
-    if (modelsRef.current.hasOwnProperty(filename)) {
+    if (filename && modelsRef.current.hasOwnProperty(filename)) {
       const desiredModel = modelsRef.current[filename];
       activateModel(desiredModel);
-    } else if (filename) {
+    } else {
       // if we have a filename
       const desiredModel = getModelFromFile(filename);
       activateModel(desiredModel);
 
       let oldModelState = { ...modelsRef.current };
-      oldModelState[filename] = desiredModel;
+      oldModelState[desiredModel.filename] = desiredModel;
 
       // Add it to state
       setModels(oldModelState);
-    } else {
-      // Prob. we want an empty model
-    }
+    } 
   };
 
   /*
@@ -123,6 +123,8 @@ export const useEditorProvider = () => {
       ? loadCodeForMonaco(filename)
       : monaco.editor.createModel("");
 
+    const newFileName = filename ? filename : getUntitledIndex();
+
     // Add Listener to it to detect dirtiness
     newModel.onDidChangeContent(() => {
       // It assumes that the current models is itself
@@ -132,10 +134,8 @@ export const useEditorProvider = () => {
 
       if (isDirty == currentModelRef.current.isDirty) return; // Setting is expesive and it causes lag
       setCurrentModel({ ...currentModelRef.current, isDirty });
-      saveCurrentToModel(filename, false);
+      saveCurrentToModel(newFileName, false);
     });
-
-    const newFileName = filename ? filename : getUntitledIndex();
 
     return {
       filename: newFileName,
@@ -150,14 +150,11 @@ export const useEditorProvider = () => {
   /*
    *  Get untitled index
    */
-  const getUntitledIndex = () =>
-    `untitled-${
-      Math.max(
-        ...Object.keys(modelsRef.current)
-          .find((k) => k.startsWith("untitled"))
-          .map((k) => parseInt(k.replace("untitled-")))
-      ) + 1
-    }`;
+  const getUntitledIndex = () => {
+    const name = `Untitled-${unIndexRef.current}`;
+    setunIndex(unIndexRef.current + 1);
+    return name;
+  }
 
   /*
    * Delete Model
@@ -176,15 +173,14 @@ export const useEditorProvider = () => {
   /*
    *  Request Close Tab
    */
-  const requestCloseTab = (filename) => {
+  const requestCloseTab = (filename, skipCheck = false) => {
     const keys = Object.keys(modelsRef.current);
     const loc = keys.indexOf(filename);
 
     if (loc < 0) return; // No tab with given name
 
-    if (modelsRef.current[filename]?.isDirty) {
+    if (modelsRef.current[filename]?.isDirty && skipCheck === false) {
       let response = isDirtyDialog(filename);
-      console.log(response);
       if (response == 0) {
         saveFile(filename);
       } else if (response == 2) {
@@ -194,7 +190,11 @@ export const useEditorProvider = () => {
     }
 
     if (keys.length <= 1) {
-      // Only one tab
+      // handle only one tab
+      deleteModel(filename);
+      setCurrentModel(defaultModel);
+
+      console.log(modelsRef.current);
     } else {
       if (filename === currentModelRef.current.filename) {
         const newIndex = loc == 0 ? loc + 1 : loc - 1;
@@ -222,9 +222,22 @@ export const useEditorProvider = () => {
    *  Handle Save as
    */
   const saveAsFile = (filename = openedFileRef.current) => {
-    const pathToSave = SaveAsDialog(__dirname); //<- Change __dirname to a more global scope
+    const pathToSave = SaveAsDialog(workspaceRef.current);
     if (pathToSave) {
-      saveFile(pathToSave, true);
+
+      const modelTosave =
+        currentModelRef.filename === filename
+          ? instanceRef.current.getModel()
+          : modelsRef.current[filename]?.modelValue;
+
+      if (modelTosave) {
+        writeFile(pathToSave, modelTosave.getValue());
+        if (currentModelRef.current.filename === filename) {
+          //if we are saving the current model but we need to close it and reopen it, to load its URI
+          requestCloseTab(filename, true); //disable dirtness check
+          requestNewTab(pathToSave);
+        }
+      }
     }
   };
 
@@ -238,7 +251,7 @@ export const useEditorProvider = () => {
       const modelTosave =
         currentModelRef.filename === filename
           ? instanceRef.current.getModel()
-          : modelsRef.current[filename].modelValue;
+          : modelsRef.current[filename]?.modelValue;
 
       if (modelTosave) {
         writeFile(filename, modelTosave.getValue());
@@ -247,6 +260,7 @@ export const useEditorProvider = () => {
           setCurrentModel({ ...currentModelRef.current, isDirty: false });
           saveCurrentToModel(filename, true);
         } else {
+          // We are saving model
           let oldValue = { ...modelsRef.current };
           oldValue[filename] = {
             ...oldValue[filename],
@@ -260,9 +274,22 @@ export const useEditorProvider = () => {
     }
   };
 
+  /*
+  * New Workplace
+  */
+  const newWorkspace = () => {
+    const result = OpenFolderDialog();
+    if(result){
+      setWorkspace(result[0]);
+    } 
+  }
+
   return {
     instance,
     setInstance,
+
+    workspace,
+    newWorkspace,
 
     currentModel,
     models,
@@ -276,5 +303,6 @@ export const useEditorProvider = () => {
 
     openFile,
     saveFile,
+    saveAsFile,
   };
 };
