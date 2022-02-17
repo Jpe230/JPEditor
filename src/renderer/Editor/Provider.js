@@ -1,16 +1,18 @@
 import React, { useContext, createContext } from "react";
-import { ipcRenderer } from "electron";
 import { loadCodeForMonaco, writeFile } from "@app/renderer/fileSystem";
+import { isDirtyDialog, SaveAsDialog } from "@app/renderer/Editor/dialogs";
 import useState from "react-usestateref";
-const dialog = require("electron").remote.dialog;
+
+export const defaultModel = {
+  filename: undefined,
+  modelValue: undefined,
+  modelView: undefined,
+  isDirty: false,
+  versionId: undefined,
+  isUntitled: false,
+};
 
 export const EditorContext = createContext();
-
-export const defaultCode = {
-  filename: undefined,
-  content: undefined,
-  language: undefined,
-};
 
 export const EditorProvider = ({ children }) => {
   const editor = useEditorProvider();
@@ -22,202 +24,257 @@ export const EditorProvider = ({ children }) => {
 export const useEditor = () => useContext(EditorContext);
 
 export const useEditorProvider = () => {
-  const [language, setLanguage] = useState(undefined);
-  const [dirty, setDirty, dirtyRef] = useState(false);
-  const [filename, setFilename] = useState("");
-  const [code, setCode] = useState(defaultCode);
-  const [instance, setInstance] = useState(null);
-  const [tabs, setTabs, tabRef] = useState({});
+  const [instance, setInstance, instanceRef] = useState(null);
+  const [openedFile, setOpenedFile, openedFileRef] = useState("");
+  const [currentModel, setCurrentModel, currentModelRef] =
+    useState(defaultModel);
+  const [models, setModels, modelsRef] = useState({});
 
-  const saveViewModel = (
-    filename = code?.filename,
-    editor = instance,
-    saveAlternateVersion = false
+  /*
+   * Set Current model
+   */
+  const saveCurrentToModel = (
+    filename = openedFile.current,
+    saveVersionId = false
   ) => {
-    const view = (editor || instance).saveViewState();
-    const model = (editor || instance).getModel();
-    const isDirty = dirtyRef.current;
+    // This implies that the model was set
+    const modelView = instanceRef.current.saveViewState();
+    const modelValue = instanceRef.current.getModel();
+    const isDirty = currentModelRef.current.isDirty;
 
-    let prevTabs = { ...tabRef.current };
-    prevTabs[filename] = {
-      ...prevTabs[filename],
-      view,
-      model,
+    // Get previous models state
+    let oldModelState = { ...modelsRef.current };
+
+    oldModelState[filename] = {
+      ...oldModelState[filename],
+      filename,
+      modelValue,
+      modelView,
       isDirty,
     };
 
-    if (saveAlternateVersion) {
-      prevTabs[filename] = {
-        ...prevTabs[filename],
-        versionId: model.getAlternativeVersionId(),
+    // Set Version ID
+    if (saveVersionId) {
+      oldModelState[filename] = {
+        ...oldModelState[filename],
+        versionId: modelValue.getAlternativeVersionId(),
       };
     }
 
-    setTabs(prevTabs);
+    // Re-add it to state
+    setModels(oldModelState);
   };
 
-  const openTab = (filename, requestedTab, editor = instance) => {
-    editor.setModel(requestedTab.model);
-    editor.restoreViewState(requestedTab.view);
-    setDirty(requestedTab.isDirty);
-    const detectedLanguage = requestedTab.model.getLanguageId();
-    setFilename(filename);
-    setCode({
-      filename: filename,
-      content: requestedTab.model.getValue(),
-      language: detectedLanguage,
-    });
-    setLanguage(detectedLanguage);
+  /*
+   *  Activate Model
+   */
+  const activateModel = (desiredModel) => {
+    // Our desired model is now the current model
+    setCurrentModel(desiredModel);
+    setOpenedFile(desiredModel.filename);
+
+    // Load model and view into Monaco
+    instanceRef.current.setModel(desiredModel.modelValue);
+
+    if (desiredModel.modelView)
+      //Restore view if it exist
+      instanceRef.current.restoreViewState(desiredModel.modelView);
   };
 
-  const requestNewTab = (filename = code?.filename, editor = instance) => {
-    if (filename === code?.filename) {
-      (editor || instance)?.focus();
+  /*
+   *  Request new tab, file should exist
+   */
+  const requestNewTab = (filename) => {
+    // If current model is the same just focus it;
+    if (filename === openedFileRef.current) {
+      instanceRef.current.focus();
       return;
     }
 
-    if (code?.filename) {
-      saveViewModel(code?.filename, editor);
+    // Check if we have a valid model and save it contents
+    if (currentModelRef.current.modelValue) {
+      saveCurrentToModel(currentModelRef.current.filename, false); // Dont save version Id
     }
 
-    if (filename && tabs.hasOwnProperty(filename)) {
-      const tabToOpen = tabs[filename];
-      openTab(filename, tabToOpen, editor);
-      (editor || instance)?.focus();
+    // If requested tab exist in our models
+    if (modelsRef.current.hasOwnProperty(filename)) {
+      const desiredModel = modelsRef.current[filename];
+      activateModel(desiredModel);
+    } else if (filename) {
+      // if we have a filename
+      const desiredModel = getModelFromFile(filename);
+      activateModel(desiredModel);
+
+      let oldModelState = { ...modelsRef.current };
+      oldModelState[filename] = desiredModel;
+
+      // Add it to state
+      setModels(oldModelState);
     } else {
-      openFile(filename, editor);
+      // Prob. we want an empty model
     }
   };
 
-  const openFile = (filename = code?.filename, editor = instance) => {
-    console.log(`opening file: ${filename}`);
+  /*
+   *  Get model from file or create if it doesnt exist
+   */
+  const getModelFromFile = (filename) => {
+    const newModel = filename
+      ? loadCodeForMonaco(filename)
+      : monaco.editor.createModel("");
 
-    const model = loadCodeForMonaco(filename);
-    const detectedLanguage = model.getLanguageId();
-
-    editor.setModel(model);
-    setFilename(filename);
-    setCode({
-      filename: filename,
-      content: model.getValue(),
-      language: detectedLanguage,
-    });
-
-    setDirty(false);
-    setLanguage(detectedLanguage);
-
-    model.onDidChangeContent(() => {
+    // Add Listener to it to detect dirtiness
+    newModel.onDidChangeContent(() => {
+      // It assumes that the current models is itself
       const isDirty =
-        tabRef.current[filename].versionId !== model.getAlternativeVersionId();
-      setDirty(isDirty);
+        currentModelRef.current.versionId !==
+        newModel.getAlternativeVersionId();
+
+      if (isDirty == currentModelRef.current.isDirty) return; // Setting is expesive and it causes lag
+      setCurrentModel({ ...currentModelRef.current, isDirty });
+      saveCurrentToModel(filename, false);
     });
 
-    console.log("openFile", { filename, detectedLanguage });
-    (editor || instance)?.focus();
-    saveViewModel(filename, editor, true);
-    return model;
+    const newFileName = filename ? filename : getUntitledIndex();
+
+    return {
+      filename: newFileName,
+      modelValue: newModel,
+      modelView: undefined, // We dont have a view yet
+      isDirty: false,
+      isUntitled: filename ? false : true,
+      versionId: newModel.getAlternativeVersionId(),
+    };
   };
 
-  if (instance) {
-    ipcRenderer.on("open-file", (_, filename) => {
-      openFile(filename);
-    });
-    ipcRenderer.on("save-file", (_, filename) => {
-      saveFile(filename);
-    });
-  }
+  /*
+   *  Get untitled index
+   */
+  const getUntitledIndex = () =>
+    `untitled-${
+      Math.max(
+        ...Object.keys(modelsRef.current)
+          .find((k) => k.startsWith("untitled"))
+          .map((k) => parseInt(k.replace("untitled-")))
+      ) + 1
+    }`;
 
-  const saveFile = (filename = code?.filename, editor = instance) => {
-    console.log(`saving file: ${filename}`);
-    writeFile(filename, editor.getModel().getValue());
-    setDirty(false);
+  /*
+   * Delete Model
+   */
+  const deleteModel = (hashToDelete) => {
+    let oldModelState = { ...modelsRef.current };
+
+    // Safely dispose model
+    oldModelState[hashToDelete]?.modelValue?.dispose();
+    delete oldModelState[hashToDelete];
+
+    // Add it to state
+    setModels(oldModelState);
   };
 
-  const updateOptions = (opts) => {
-    const options = opts || {};
-    instance.updateOptions(options);
-
-    console.log("updateOptions", options);
-    if ("language" in options) {
-      setLanguage(options.language);
-    }
-    instance.layout();
-  };
-
-  const isDirtyDialog = (filename = code?.filename) =>
-    dialog.showMessageBoxSync({
-      title: "Jpeditor",
-      type: "warning",
-      buttons: ["Save", "Don't Save", "Cancel"],
-      message: `Do you to save the changes you made to ${filename}`,
-      detail: "Your changes will be lost if you don't save them",
-      noLink: true,
-    });
-
-  const requestCloseTab = (filename = code?.filename) => {
-    const keys = Object.keys(tabRef.current);
+  /*
+   *  Request Close Tab
+   */
+  const requestCloseTab = (filename) => {
+    const keys = Object.keys(modelsRef.current);
     const loc = keys.indexOf(filename);
 
     if (loc < 0) return; // No tab with given name
 
-    if (tabRef.current[filename]?.isDirty) {
+    if (modelsRef.current[filename]?.isDirty) {
       let response = isDirtyDialog(filename);
-
-      if (response == 1) {
-        //Do something
+      console.log(response);
+      if (response == 0) {
+        saveFile(filename);
+      } else if (response == 2) {
+        console.log("cancel");
+        return;
       }
     }
 
-    //Handle if closing the single tab
     if (keys.length <= 1) {
+      // Only one tab
     } else {
-      //Check if we are closing the currenttab
-      if (filename === code?.filename) {
-        let prevTab = tabRef.current[keys[loc - 1]];
-        let oldState = { ...tabRef.current };
-        // delete currentTab
-        oldState[filename].model.dispose();
-        delete oldState[filename];
-        openTab(keys[loc - 1], prevTab);
-        //Set previous tab
-        setTabs(oldState);
-        //console.log(tabRef);
-        instance?.focus();
+      if (filename === currentModelRef.current.filename) {
+        const newIndex = loc == 0 ? loc + 1 : loc - 1;
+        const modelToFocus = modelsRef.current[keys[newIndex]];
+
+        deleteModel(filename);
+
+        // Activate previous model
+        activateModel(modelToFocus);
+        instanceRef.current.focus();
       } else {
-        let oldState = { ...tabRef.current };
-        // delete currentTab
-        oldState[filename].model.dispose();
-        delete oldState[filename];
-        setTabs(oldState);
+        deleteModel(filename);
+      }
+    }
+  };
+
+  /*
+   *  Handle Open file
+   */
+  const openFile = (filename) => {
+    console.log(filename);
+  };
+
+  /*
+   *  Handle Save as
+   */
+  const saveAsFile = (filename = openedFileRef.current) => {
+    const pathToSave = SaveAsDialog(__dirname); //<- Change __dirname to a more global scope
+    if (pathToSave) {
+      saveFile(pathToSave, true);
+    }
+  };
+
+  /*
+   *  Handle silent save
+   */
+  const saveFile = (filename = openedFileRef.current, skipCheck = false) => {
+    if (modelsRef.current[filename]?.isUntitled && skipCheck == false) {
+      saveAsFile(filename);
+    } else {
+      const modelTosave =
+        currentModelRef.filename === filename
+          ? instanceRef.current.getModel()
+          : modelsRef.current[filename].modelValue;
+
+      if (modelTosave) {
+        writeFile(filename, modelTosave.getValue());
+        if (currentModelRef.current.filename === filename) {
+          //if we are saving the current model
+          setCurrentModel({ ...currentModelRef.current, isDirty: false });
+          saveCurrentToModel(filename, true);
+        } else {
+          let oldValue = { ...modelsRef.current };
+          oldValue[filename] = {
+            ...oldValue[filename],
+            isDirty: false,
+          };
+          setModels(oldValue);
+        }
+      } else {
+        console.error("Could not save model");
       }
     }
   };
 
   return {
-    requestNewTab,
-
-    code,
-    setCode,
-
-    dirty,
-    setDirty,
-
-    language,
-    setLanguage,
-
     instance,
     setInstance,
 
-    tabs,
-    setTabs,
+    currentModel,
+    models,
+    setModels,
 
-    filename,
-    setFilename,
+    openedFile,
+    setOpenedFile,
 
+    requestNewTab,
     requestCloseTab,
 
     openFile,
     saveFile,
-    updateOptions,
   };
 };

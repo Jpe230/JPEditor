@@ -62,7 +62,9 @@ const MTab = styled(Box)`
 const MTabs = (props) => {
   const [value, setValue] = useState(0);
   const [transformedTabs, setTTabs] = useState([]);
-  const { tabs, filename, requestNewTab, dirty, setTabs, requestCloseTab } = useEditor();
+
+  const { models, setModels, currentModel, requestNewTab, requestCloseTab } =
+    useEditor();
 
   const handleChange = (event, newValue) => {
     requestNewTab(newValue);
@@ -70,26 +72,24 @@ const MTabs = (props) => {
 
   useEffect(() => {
     let _tabs = [];
-    Object.keys(tabs).map((key) => {
+    Object.keys(models).map((key) => {
       _tabs.push({
-        ...tabs[key],
+        ...models[key],
         fileName: path.basename(key),
         fullPath: key,
       });
     });
     setTTabs(_tabs);
-  }, [tabs]);
-
-  useEffect(() => {
-    console.log(filename);
-  }, [filename])
+  }, [models]);
 
   const onDrop = ({ removedIndex, addedIndex }) => {
-    setTabs((tabs) => {
+    setModels((tabs) => {
       let _tabs = {};
-      arrayMoveImmutable(Object.keys(tabs), removedIndex, addedIndex).forEach((tab) => {
-        _tabs[tab] = {...tabs[tab]};
-      });
+      arrayMoveImmutable(Object.keys(tabs), removedIndex, addedIndex).forEach(
+        (tab) => {
+          _tabs[tab] = { ...tabs[tab] };
+        }
+      );
       return _tabs;
     });
   };
@@ -102,21 +102,21 @@ const MTabs = (props) => {
     e.preventDefault();
     e.stopPropagation();
     requestCloseTab(tab.fullPath);
-  }
+  };
 
   const handleMouseDown = (e, tab) => {
-    if( e.button === 1 ) {
-      console.log("hey");
+    if (e.button === 1) {
       e.preventDefault();
       e.stopPropagation();
       requestCloseTab(tab.fullPath);
     }
-  }
+  };
 
   const checkIfActive = (p) =>
-    p === filename ? tabUnstyledClasses.selected : "";
+    p === currentModel?.filename ? tabUnstyledClasses.selected : "";
 
-  const checkIfDirty = (p) => (p.fullPath === filename ? dirty : p.isDirty);
+  const checkIfDirty = (p) =>
+    p.filename === currentModel?.filename ? currentModel?.isDirty : p.isDirty;
 
   return (
     <Container onDrop={onDrop} orientation="horizontal" lockAxis="x">

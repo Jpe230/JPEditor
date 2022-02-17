@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { remote } from "electron";
-import { useMenu } from "./menu";
 import TitleBar from "frameless-titlebar";
-
+import { useEditor } from "@app/renderer/Editor/Provider";
+import * as path from "path";
 const currentWindow = remote.getCurrentWindow();
 
-const Example = () => {
+const CustomBar = () => {
+  const { currentModel } = useEditor();
   // manage window state, default to currentWindow maximized state
   const [maximized, setMaximized] = useState(currentWindow.isMaximized());
+
   // add window listeners for currentWindow
   useEffect(() => {
     const onMaximized = () => setMaximized(true);
@@ -181,13 +183,24 @@ const Example = () => {
       ],
     },
   ];
+
+  const mTitle = () => {
+    if (currentModel?.filename) {
+      return `${currentModel?.isDirty ? "•" : ""} ${path.basename(
+        currentModel?.filename
+      )} -`;
+    } else {
+      return "";
+    }
+  };
+
   return (
     <div>
       <TitleBar
         currentWindow={currentWindow} // electron window instance
         platform={process.platform} // win32, darwin, linux
         menu={defaultMenu}
-        title="frameless app"
+        title={`${mTitle()} Jpeditor`}
         onClose={() => currentWindow.close()}
         onMinimize={() => currentWindow.minimize()}
         onMaximize={handleMaximize}
@@ -205,4 +218,4 @@ const Example = () => {
     </div>
   );
 };
-export default Example;
+export default CustomBar;
