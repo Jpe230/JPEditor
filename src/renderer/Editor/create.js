@@ -59,6 +59,14 @@ export const createEditor = (parentElement, options, context) => {
     context.saveFile();
   });
 
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => {
+    context.saveAsFile();
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => {
+    context.requestNewTab();
+  });
+
   const supportedActions = editor.getSupportedActions().map((a) => a.id);
   console.log({ supportedActions });
 

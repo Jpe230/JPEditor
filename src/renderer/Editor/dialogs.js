@@ -22,5 +22,13 @@ export const SaveAsDialog = (defaultPath) =>
   dialog.showSaveDialogSync({
     title: "Jpeditor",
     defaultPath,
-    noLink: true,
+  });
+
+/*
+ *  Open Folder
+ */
+export const OpenFolderDialog = () =>
+  dialog.showOpenDialogSync({
+    title: "Jpeditor",
+    properties: ["openDirectory"],
   });
