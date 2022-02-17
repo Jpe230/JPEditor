@@ -12,7 +12,7 @@ export const defaultOptions = {
   theme: "vs-dark",
   height: "100%",
   fontSize: "18px",
-  scrollBeyondLastLine: false,
+  scrollBeyondLastLine: true,
   width: "100%",
 };
 
