@@ -56,10 +56,8 @@ export const createEditor = (parentElement, options, context) => {
 
   //Key binding
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-    console.log("save file Cmd+S");
+    context.saveFile();
   });
-
-  
 
   const supportedActions = editor.getSupportedActions().map((a) => a.id);
   console.log({ supportedActions });

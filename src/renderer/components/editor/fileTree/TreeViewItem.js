@@ -53,11 +53,6 @@ const MTreeViewItem = (props) => {
   const onClickCallBack = (event) => {
     if (!isFolder) {
       requestNewTab(fullPath);
-      // if (event.detail === 1) {
-      //   console.log("CLICK");
-      // } else if (event.detail === 2) {
-      //   console.log("Double CLICK");
-      // }
     }
   };
 

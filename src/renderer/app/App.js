@@ -11,7 +11,7 @@ const App = () => {
   return (
     <ThemeProvider theme={darkTheme}>
       <Title />
-      <Layout></Layout>
+      <Layout/>
     </ThemeProvider>
   );
 };

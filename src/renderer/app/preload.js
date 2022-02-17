@@ -1,1 +1,0 @@
-window.preloadWasRun = 'preload was run'
