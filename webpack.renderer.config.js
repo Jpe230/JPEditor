@@ -2,9 +2,16 @@ const path = require("path");
 const CopyPlugin = require("copy-webpack-plugin");
 const MonacoWebpackPlugin = require("monaco-editor-webpack-plugin");
 const WriteFilePlugin = require("write-file-webpack-plugin");
+const { IgnorePlugin } = require('webpack');
 
 const srcPath = path.resolve(__dirname, "src");
 const monacoPath = path.resolve(__dirname, "node_modules/monaco-editor/min");
+
+
+const optionalPlugins = [];
+if (process.platform !== "darwin") {
+  optionalPlugins.push(new IgnorePlugin({ resourceRegExp: /^fsevents$/ }));
+}
 
 module.exports = {
   stats: "errors-warnings",
@@ -76,5 +83,6 @@ module.exports = {
       useHashIndex: true,
     }),
     new MonacoWebpackPlugin(),
+    ...optionalPlugins,
   ],
 };
